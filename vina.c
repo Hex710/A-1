@@ -4,29 +4,35 @@
 
 #include "lz.h"
 
+#define UID 1
+#define OG 2
+#define COMP 3
+#define DATE 4
+#define ORDER 5
+#define OFFSET 6
+
 struct info
 {
-    char name[1025];
-    int uid;
-    int og_Size;
-    int comp_Size;
-    int mod_Date;
-    int order;
-    int offset;
+    char name[1025]; // nome do membro
+    int uid;         // id unica do membro
+    int og_Size;     // tamanho do membro original
+    int comp_Size;   // tamanho do membro apos compressao
+    int mod_Date;    // data de modificacao do membro
+    int order;       // ordem do membro dentro do archive
+    int offset;      // offset do inicio do archive ate o inicio do membro
 };
 
-int search_Offset(FILE *archive, char *name)
+char *search(FILE *archive, char *name, int s)
 {
     FILE *temp = strtok(archive, " ");
 
     while (temp != name)
         temp = strtok(NULL, " ");
 
-    for (int i = 0; i < 6; i++)
+    for (int i = 0; i < s; i++)
         temp = strtok(NULL, " ");
 
-    return (int)temp;
-    /* find a way to save the pointer, but then send the read into the directory to find the offset for the wanted file */
+    return temp;
 }
 
 int main()
@@ -50,7 +56,7 @@ int main()
     if (op == "m")
     {
         temp = strtok(NULL, " ");
-        search_Offset(archive, temp);
+        search(archive, temp, OFFSET);
     }
     else if (op == "x")
     {
