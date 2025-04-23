@@ -77,7 +77,7 @@ char *search(FILE *archive, char *target, int base, int s)
             i = 0;
             temp = strtok(NULL, " ");
         }
-        return aux[s];
+        return aux[s - base];
     }
 
     if (temp == NULL)
@@ -89,17 +89,24 @@ char *search(FILE *archive, char *target, int base, int s)
     return temp;
 }
 
+int lenght_Til(FILE *archive, char *target)
+{
+    char *buffer;
+    int sz;
+}
+
 int move(FILE *archive, char *antecessor, int espaco, int tam, int atual)
 {
     // create two files to store the info from the members
     FILE *list, *target;
     char *buffer;
-    int pulo, ant, num = atual;
+    int pulo, sz, ant, num = atual;
+    sz = 0;
 
     list = fopen("list", "w+");
     target = fopen("target", "w+");
 
-    // one by one copy the members, that appear after the one you want to move, into a file then concaten them out
+    // one by one copy the members, that appear after the one you want to move, into a file then trunk them out
     do
     {
         ant = num;
@@ -112,7 +119,9 @@ int move(FILE *archive, char *antecessor, int espaco, int tam, int atual)
         fseek(archive, pulo, SEEK_SET);
         fgets(buffer, atoi(search(archive, inttoa(ant), ORDER, COMP)), archive);
         fputs(buffer, list);
-        // concatenar
+        ftruncate(archive, atoi(search(archive, ant, ORDER, OFFSET)));
+        sz += atoi(search(archive, ant, ORDER, COMP));
+
         ant--;
     } while (ant > atual);
 
@@ -120,9 +129,9 @@ int move(FILE *archive, char *antecessor, int espaco, int tam, int atual)
     fseek(archive, espaco, SEEK_SET);
     fgets(buffer, tam, archive);
     fputs(buffer, target);
-    // concatenar
+    ftruncate(archive, espaco);
 
-    // one by one copy the members, that appear before the one you want to move, but after the one you want to move to, into a file then concaten them out
+    // one by one copy the members, that appear before the one you want to move, but after the one you want to move to, into a file then trunk them out
     num = search(archive, antecessor, NAME, ORDER);
     ant = (atual - 1);
 
@@ -132,9 +141,11 @@ int move(FILE *archive, char *antecessor, int espaco, int tam, int atual)
         fseek(archive, pulo, SEEK_SET);
         fgets(buffer, atoi(search(archive, inttoa(ant), ORDER, COMP)), archive);
         fputs(buffer, list);
-        // concatenar
+        ftruncate(archive, atoi(search(archive, ant, ORDER, OFFSET)));
+        sz += atoi(search(archive, ant, ORDER, COMP));
+
         ant = atoi(search(archive, inttoa(ant - 1), ORDER, ORDER));
-    } while (ant > (num + 1));
+    } while (ant > num);
 
     // write the member you wanted to move into the archive, then write the others in the opposite order you took them
     fgets(buffer, tam, target);
@@ -147,11 +158,14 @@ int move(FILE *archive, char *antecessor, int espaco, int tam, int atual)
         pulo = -pulo;
         fgets(buffer, pulo, list);
         fputs(buffer, archive);
-        // concatenar
+        ftruncate(list, sz);
+        sz -= atoi(search(archive, ant, ORDER, COMP));
+
         ant = atoi(search(archive, inttoa(ant + 1), ORDER, ORDER));
     } while (ant);
 
     // fix the positions in the directory
+
     fclose(list);
     fclose(target);
 }
@@ -160,44 +174,26 @@ int main(int argc, char **argv)
 {
     FILE *archive, *membro;
     char *buffer;
-    int op, i;
-
-    buffer = argv[1];
-    if (buffer == "m")
-        op = 0;
-    else if (buffer == "x")
-        op = 1;
-    else if (buffer == "r")
-        op = 2;
-    else if (buffer == "c")
-        op = 3;
-    else if (buffer == "ip")
-        op = 4;
-    else
-        op = 5;
+    int i;
 
     buffer = argv[2];
 
-    if (op == 0)
-    {
-        membro = fopen("temp", "a+");
-        fputs(buffer, membro);
+    if (argv[1] == "m")
         buffer = argv[3];
-    }
 
     archive = fopen(buffer, "+a");
 
-    if (op == 0)
+    if (argv[1] == "m")
     {
         i = 4;
         do
         {
             buffer = argv[i];
-            int espaco, compresso;
+            int espaco, compresso, pos;
             espaco = atoi(search(archive, buffer, NAME, OFFSET));
             compresso = atoi(search(archive, buffer, NAME, COMP));
-            fgets(buffer, 1025, membro);
-            move(archive, buffer, espaco, compresso); // veja o que por no fgets como o primeiro parametro
+            pos = atoi(search(archive, buffer, NAME, ORDER));
+            move(archive, argv[2], espaco, compresso, pos);
             i++;
         } while (argv[i] != NULL);
     }
@@ -205,39 +201,36 @@ int main(int argc, char **argv)
     {
         buffer = argv[3];
         i = 3;
-        if (op == 1)
+        if (argv[1] == "x")
         {
             do
             {
 
             } while (argv[i] != NULL);
         }
-        else if (op == 2)
+        else if (argv[1] == "r")
         {
             do
             {
 
             } while (argv[i] != NULL);
         }
-        else if (op == 3)
+        else if (argv[1] == "c")
         {
         }
-        else
+        else if (argv[1] == "i")
         {
-            if (op == 4)
+            do
             {
-                do
-                {
 
-                } while (argv[i] != NULL);
-            }
-            else if (op == 5)
+            } while (argv[i] != NULL);
+        }
+        else if (argv[1] == "p")
+        {
+            do
             {
-                do
-                {
 
-                } while (argv[i] != NULL);
-            }
+            } while (argv[i] != NULL);
         }
     }
 
