@@ -95,6 +95,70 @@ int lenght_Til(FILE *archive, char *target)
     int sz;
 }
 
+int test(FILE *archive, int start, int tam, int target, int max)
+{
+    FILE *aux;
+    char buffer[max];
+    int i, j = target;
+
+    aux = fopen("target", "w+");
+
+    fseek(archive, start, SEEK_SET);
+    fgets(buffer, tam, archive);
+    fputs(buffer, aux);
+
+    if (target > start)
+    {
+        i = (start + tam + 1);
+        while ((i + max) < target)
+        {
+            fseek(archive, j, SEEK_SET);
+            fgets(buffer, max, archive);
+            fseek(archive, start, SEEK_SET);
+            fputs(buffer, archive);
+            start += max;
+            j += max;
+            i += max;
+        }
+        if (i < target)
+        {
+            fseek(archive, j, SEEK_SET);
+            fgets(buffer, (target - i), archive);
+            fseek(archive, start, SEEK_SET);
+            fputs(buffer, archive);
+        }
+        fgets(buffer, tam, aux);
+        fputs(buffer, archive);
+    }
+    else
+    {
+        i = (start - 1);
+        while ((i - max) > target)
+        {
+            fseek(archive, j, SEEK_SET);
+            fgets(buffer, max, archive);
+            fseek(archive, start, SEEK_SET);
+            fputs(buffer, archive);
+            start += max;
+            j += max;
+            i -= max;
+        }
+        if (i > target)
+        {
+            fseek(archive, j, SEEK_SET);
+            fgets(buffer, (i - target), archive);
+            fseek(archive, start, SEEK_SET);
+            fputs(buffer, archive);
+        }
+
+        fgets(buffer, tam, aux);
+        fseek(archive, target, SEEK_SET);
+        fputs(buffer, archive);
+    }
+
+    fclose(aux);
+}
+
 int move(FILE *archive, char *antecessor, int espaco, int tam, int atual)
 {
     // create two files to store the info from the members
