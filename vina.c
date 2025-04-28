@@ -2,62 +2,25 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/types.h>
 
 #include "lz.h"
-
-#define NAME 0
-#define UID 1
-#define OG 2
-#define COMP 3
-#define DATE 4
-#define ORDER 5
-#define OFFSET 6
+#include "archive.h"
 
 struct info
 {
-    char name[1025]; // nome do membro
-    int uid;         // id unica do membro
-    int og_Size;     // tamanho do membro original
-    int comp_Size;   // tamanho do membro apos compressao
-    int mod_Date;    // data de modificacao do membro
-    int order;       // ordem do membro dentro do archive
-    int offset;      // offset do inicio do archive ate o inicio do membro
+    char name[1025];         // nome do membro
+    unsigned long uid;       // id unica do membro
+    unsigned long og_Size;   // tamanho do membro original
+    unsigned long comp_Size; // tamanho do membro apos compressao
+    unsigned long mod_Date;  // data de modificacao do membro
+    unsigned long order;     // ordem do membro dentro do archive
+    unsigned long offset;    // offset do inicio do archive ate o inicio do membro
 };
 
-char *inttoa(int i)
+char *search(char *dir, char *target, unsigned long base, unsigned long s)
 {
-    int c, j = i;
-    c = 0;
-
-    while (j)
-    {
-        j /= 10;
-        c++;
-    }
-
-    j = c;
-
-    char *str[c + 1];
-    if (i < 0)
-    {
-        str[0] = "-";
-        i = -i;
-    }
-
-    while (i > 0)
-    {
-        str[j--] = ((i % 10) + "0");
-        i /= 10;
-    }
-
-    str[j] = "\0";
-
-    return str;
-}
-
-char *search(FILE *archive, char *target, int base, int s)
-{
-    FILE *temp = strtok(archive, " ");
+    char *temp = strtok(dir, " ");
 
     char *aux[base - s];
 
@@ -69,7 +32,7 @@ char *search(FILE *archive, char *target, int base, int s)
     else
     {
         aux[0] = temp;
-        int i = 1;
+        unsigned long i = 1;
         while ((temp != target) && (temp != NULL))
         {
             for (i; i < base; i++)
@@ -82,170 +45,53 @@ char *search(FILE *archive, char *target, int base, int s)
 
     if (temp == NULL)
     {
-        for (int i = base; i < s; i++)
+        for (unsigned long i = base; i < s; i++)
             temp = strtok(NULL, " ");
     }
 
     return temp;
 }
 
-int lenght_Til(FILE *archive, char *target)
+unsigned long max_Size(char *directory)
 {
-    char *buffer;
-    int sz;
-}
+    unsigned long j, max = 0;
+    strtok(directory, " ");
 
-int test(FILE *archive, int start, int tam, int target, int max)
-{
-    FILE *aux;
-    char buffer[max];
-    int i, j = target;
-
-    aux = fopen("target", "w+");
-
-    fseek(archive, start, SEEK_SET);
-    fgets(buffer, tam, archive);
-    fputs(buffer, aux);
-
-    if (target > start)
+    for (int i = 0; i < 2; i++)
+        strtok(NULL, " ");
+    j = atoi(strtok(NULL, " "));
+    if (j > max)
+        max = j;
+    for (int i = 0; i < 3; i++)
+        strtok(NULL, " ");
+    while (strtok(NULL, " ") != NULL)
     {
-        i = (start + tam + 1);
-        while ((i + max) < target)
-        {
-            fseek(archive, j, SEEK_SET);
-            fgets(buffer, max, archive);
-            fseek(archive, start, SEEK_SET);
-            fputs(buffer, archive);
-            start += max;
-            j += max;
-            i += max;
-        }
-        if (i < target)
-        {
-            fseek(archive, j, SEEK_SET);
-            fgets(buffer, (target - i), archive);
-            fseek(archive, start, SEEK_SET);
-            fputs(buffer, archive);
-        }
-        fgets(buffer, tam, aux);
-        fputs(buffer, archive);
+        for (int i = 0; i < 2; i++)
+            strtok(NULL, " ");
+        j = atoi(strtok(NULL, " "));
+        if (j > max)
+            max = j;
+        for (int i = 0; i < 3; i++)
+            strtok(NULL, " ");
     }
-    else
-    {
-        i = (start - 1);
-        while ((i - max) > target)
-        {
-            fseek(archive, j, SEEK_SET);
-            fgets(buffer, max, archive);
-            fseek(archive, start, SEEK_SET);
-            fputs(buffer, archive);
-            start += max;
-            j += max;
-            i -= max;
-        }
-        if (i > target)
-        {
-            fseek(archive, j, SEEK_SET);
-            fgets(buffer, (i - target), archive);
-            fseek(archive, start, SEEK_SET);
-            fputs(buffer, archive);
-        }
-
-        fgets(buffer, tam, aux);
-        fseek(archive, target, SEEK_SET);
-        fputs(buffer, archive);
-    }
-
-    fclose(aux);
-}
-
-int move(FILE *archive, char *antecessor, int espaco, int tam, int atual)
-{
-    // create two files to store the info from the members
-    FILE *list, *target;
-    char *buffer;
-    int pulo, sz, ant, num = atual;
-    sz = 0;
-
-    list = fopen("list", "w+");
-    target = fopen("target", "w+");
-
-    // one by one copy the members, that appear after the one you want to move, into a file then trunk them out
-    do
-    {
-        ant = num;
-        num = search(archive, inttoa((num + 1)), ORDER, ORDER);
-    } while (num);
-
-    do
-    {
-        pulo = atoi(search(archive, inttoa(ant), ORDER, OFFSET));
-        fseek(archive, pulo, SEEK_SET);
-        fgets(buffer, atoi(search(archive, inttoa(ant), ORDER, COMP)), archive);
-        fputs(buffer, list);
-        ftruncate(archive, atoi(search(archive, ant, ORDER, OFFSET)));
-        sz += atoi(search(archive, ant, ORDER, COMP));
-
-        ant--;
-    } while (ant > atual);
-
-    // copy the member you wish to move into the secondfile then cut it
-    fseek(archive, espaco, SEEK_SET);
-    fgets(buffer, tam, archive);
-    fputs(buffer, target);
-    ftruncate(archive, espaco);
-
-    // one by one copy the members, that appear before the one you want to move, but after the one you want to move to, into a file then trunk them out
-    num = search(archive, antecessor, NAME, ORDER);
-    ant = (atual - 1);
-
-    do
-    {
-        pulo = atoi(search(archive, inttoa(ant), ORDER, OFFSET));
-        fseek(archive, pulo, SEEK_SET);
-        fgets(buffer, atoi(search(archive, inttoa(ant), ORDER, COMP)), archive);
-        fputs(buffer, list);
-        ftruncate(archive, atoi(search(archive, ant, ORDER, OFFSET)));
-        sz += atoi(search(archive, ant, ORDER, COMP));
-
-        ant = atoi(search(archive, inttoa(ant - 1), ORDER, ORDER));
-    } while (ant > num);
-
-    // write the member you wanted to move into the archive, then write the others in the opposite order you took them
-    fgets(buffer, tam, target);
-    fputs(buffer, archive);
-
-    do
-    {
-        pulo = (-1 * atoi(search(archive, inttoa(ant), ORDER, COMP)));
-        fseek(archive, pulo, SEEK_END);
-        pulo = -pulo;
-        fgets(buffer, pulo, list);
-        fputs(buffer, archive);
-        ftruncate(list, sz);
-        sz -= atoi(search(archive, ant, ORDER, COMP));
-
-        ant = atoi(search(archive, inttoa(ant + 1), ORDER, ORDER));
-    } while (ant);
-
-    // fix the positions in the directory
-
-    fclose(list);
-    fclose(target);
+    return max;
 }
 
 int main(int argc, char **argv)
 {
     FILE *archive, *membro;
     char *buffer;
-    int i;
-
-    buffer = argv[2];
+    unsigned long i, max;
 
     if (argv[1] == "m")
-        buffer = argv[3];
+        archive = fopen(argv[3], "+a");
+    else
+        archive = fopen(argv[2], "+a");
 
-    archive = fopen(buffer, "+a");
+    max = max_Size(archive);
+
+    if (!(buffer = malloc(max * sizeof(char))))
+        return -1;
 
     if (argv[1] == "m")
     {
@@ -253,11 +99,18 @@ int main(int argc, char **argv)
         do
         {
             buffer = argv[i];
-            int espaco, compresso, pos;
+            unsigned long espaco, compresso, alvo;
             espaco = atoi(search(archive, buffer, NAME, OFFSET));
             compresso = atoi(search(archive, buffer, NAME, COMP));
-            pos = atoi(search(archive, buffer, NAME, ORDER));
-            move(archive, argv[2], espaco, compresso, pos);
+            if (argv[2] != "NULL")
+            {
+                alvo = atoi(search(archive, argv[2], NAME, OFFSET));
+                alvo += atoi(search(archive, argv[2], NAME, COMP));
+            }
+            else
+                alvo = 0;
+            move(archive, espaco, compresso, alvo, max);
+            // consertar no diretorio
             i++;
         } while (argv[i] != NULL);
     }
@@ -269,7 +122,20 @@ int main(int argc, char **argv)
         {
             do
             {
-
+                buffer = argv[i];
+                unsigned long espaco, compresso, alvo;
+                espaco = atoi(search(archive, buffer, NAME, OFFSET));
+                compresso = atoi(search(archive, buffer, NAME, COMP));
+                fseek(archive, -compresso, SEEK_END);
+                alvo = ftell(archive);
+                move(archive, espaco, compresso, alvo, max);
+                fseek(archive, -compresso, SEEK_END);
+                buffer = fgets(buffer, compresso, archive);
+                // achar um jeito de truncar
+                ftruncate();
+                // escrever em um novo arquivo
+                // consertar no diretorio
+                i++;
             } while (argv[i] != NULL);
         }
         else if (argv[1] == "r")
