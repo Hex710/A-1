@@ -10,21 +10,24 @@
 struct archive *create_Archive(FILE *arc)
 {
     struct archive *a;
-    long i, size;
+    long size, i = 0;
 
     a->members = NULL;
-    a->size = 0;
 
-    a->members = malloc(sizeof(struct member));
-    fread(a->members[0], 8, 7, arc);
-    size = (a->members[0]->offset - 1);
-    i = 1;
-
-    while (ftell(arc) < size)
+    if (ftell(arc) != fseek(arc, 0, SEEK_END))
     {
-        realloc(a->members, sizeof(struct member) * (i + 1));
-        fread(a->members[i], sizeof(struct member), 1, arc);
-        i++;
+
+        a->members = malloc(sizeof(struct member));
+        fread(a->members[0], 8, 7, arc);
+        size = (a->members[0]->offset - 1);
+        i = 1;
+
+        while (ftell(arc) < size)
+        {
+            realloc(a->members, sizeof(struct member) * (i + 1));
+            fread(a->members[i], sizeof(struct member), 1, arc);
+            i++;
+        }
     }
 
     a->size = i;
@@ -35,10 +38,6 @@ struct archive *create_Archive(FILE *arc)
 struct member *create_Member(char *name, unsigned long uid, unsigned long off)
 {
     struct member *m;
-
-    if (!(m = malloc(sizeof(struct member))))
-        return NULL;
-
     strncpy(m->name, name, 1025);
     FILE *f = fopen(name, "r");
     time_t t;
@@ -48,7 +47,7 @@ struct member *create_Member(char *name, unsigned long uid, unsigned long off)
     fseek(f, 0, SEEK_END);
     m->comp_Size = ftell(f);
     m->uid = m->order = uid;
-    m->offset = off;
+    m->offset = (off + m->comp_Size);
 
     return m;
 }
@@ -127,8 +126,6 @@ int insert_member(struct archive *a, struct member *m)
     if ((!a) || (!m))
         return 0;
 
-    unsigned long i, aux;
-
     if (!(a->size))
         a->members = malloc(sizeof(struct member));
     else
@@ -144,8 +141,7 @@ struct member *remove_Member(struct archive *a, char *name)
         return NULL;
 
     struct member *m, *h;
-    long aux, start, end;
-    FILE *dir;
+    long aux;
 
     while (a->members[aux]->name != name)
         aux++;
@@ -241,16 +237,6 @@ int destroy_Archive(struct archive *a)
 {
     if (!a)
         return 0;
-
-    struct member *m;
-
-    while (a->size > 0)
-    {
-        m = remove_Member(a, a->members[--(a->size)]->name);
-        if (!m)
-            return 0;
-        free(m);
-    }
 
     free(a->members);
     free(a);
