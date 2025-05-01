@@ -12,7 +12,7 @@
 #define OFFSET 6
 
 // contem todos os membros do arquivo e o tamanho do mesmo
-struct archive
+struct directory
 {
     struct member **members; // vetor com as informacoes dos membros como structs
     unsigned long size;      // tamanho do vetor de membros
@@ -31,7 +31,7 @@ struct member
 };
 
 // cria o struct arquivo baseado no arquivo ja existente
-struct archive *create_Archive(FILE *archive);
+struct directory *create_Directory(FILE *archive);
 
 // cria um struct membro baseado nas informacoes de um arquivo pre-existente
 struct member *create_Member(char *name, unsigned long uid, unsigned long off);
@@ -39,25 +39,25 @@ struct member *create_Member(char *name, unsigned long uid, unsigned long off);
 // faz movimentacoes de dados dentro de um arquivo, max representa o tamanho maximo do buffer
 int move(FILE *archive, unsigned long start, unsigned long tam, unsigned long target, unsigned long max);
 
-// insere um struct membro no struct archive
-int insert_member(struct archive *a, struct member *m);
+// insere um struct membro no struct directory
+int insert_member(struct directory *d, struct member *m);
 
-// remove um struct membro de um struct archive
-struct member *remove_Member(struct archive *a, char *name);
+// remove um struct membro de um struct directory
+struct member *remove_Member(struct directory *d, char *name);
 
 // imprime as informacoes de um membro
 int print_Member(struct member *m);
 
 // retorna ponteiro para o struct membro procurado, ou NULL se o mesmo nao existir
-struct member *search_Archive(struct archive *a, char *name);
+struct member *search_Directory(struct directory *d, char *name);
 
-// sobrescreve um arquivo com a struct archive
-int overwrite(FILE *archive, struct archive *a, unsigned long max);
+// sobrescreve um arquivo com a struct directory
+int overwrite(FILE *archive, struct directory *d, unsigned long max);
 
-// libera o espaco de um struct archive
-int destroy_Archive(struct archive *a);
+// libera o espaco de um struct directory
+int destroy_Directory(struct directory *d);
 
 // extrai o membro indicado do arquive e o transforma em um arquivo
-int extract_Member(FILE *arc, struct archive *a, char *name, unsigned long max);
+int extract_Member(FILE *arc, struct directory *d, char *name, unsigned long max);
 
 #endif

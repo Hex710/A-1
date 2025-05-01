@@ -7,32 +7,32 @@
 
 #include "archive.h"
 
-struct archive *create_Archive(FILE *arc)
+// criar o caso base para não ter um arquivo/diretório ainda
+struct directory *create_Directory(FILE *arc)
 {
-    struct archive *a;
-    long size, i = 0;
+    struct directory *d;
+    long i, size;
 
-    a->members = NULL;
+    d->members = NULL;
+    d->size = 0;
 
-    if (ftell(arc) != fseek(arc, 0, SEEK_END))
+    d = malloc(sizeof(struct directory));
+
+    d->members = malloc(sizeof(struct member));
+    fread(d->members[0], sizeof(struct member), 1, arc);
+    size = (d->members[0]->offset - 1);
+    i = 1;
+
+    while (ftell(arc) < size)
     {
-
-        a->members = malloc(sizeof(struct member));
-        fread(a->members[0], 8, 7, arc);
-        size = (a->members[0]->offset - 1);
-        i = 1;
-
-        while (ftell(arc) < size)
-        {
-            realloc(a->members, sizeof(struct member) * (i + 1));
-            fread(a->members[i], sizeof(struct member), 1, arc);
-            i++;
-        }
+        realloc(d->members, sizeof(struct member) * (i + 1));
+        fread(d->members[i], sizeof(struct member), 1, arc);
+        i++;
     }
 
-    a->size = i;
+    d->size = i;
 
-    return a;
+    return d;
 }
 
 struct member *create_Member(char *name, unsigned long uid, unsigned long off)
@@ -47,7 +47,8 @@ struct member *create_Member(char *name, unsigned long uid, unsigned long off)
     fseek(f, 0, SEEK_END);
     m->comp_Size = ftell(f);
     m->uid = m->order = uid;
-    m->offset = (off + m->comp_Size);
+    m->offset = off;
+    fclose(f);
 
     return m;
 }
@@ -117,43 +118,46 @@ int move(FILE *archive, unsigned long start, unsigned long tam, unsigned long ta
     }
 
     fclose(aux);
+    remove(target);
 
     return 1;
 }
 
-int insert_member(struct archive *a, struct member *m)
+int insert_member(struct directory *d, struct member *m)
 {
-    if ((!a) || (!m))
+    if ((!d) || (!m))
         return 0;
 
-    if (!(a->size))
-        a->members = malloc(sizeof(struct member));
+    unsigned long i, aux;
+
+    if (!(d->size))
+        d->members = malloc(sizeof(struct member));
     else
-        realloc(a->members, ((a->size + 1) * sizeof(struct member)));
-    a->members[(a->size)++] = m;
+        realloc(d->members, ((d->size + 1) * sizeof(struct member)));
+    d->members[(d->size)++] = m;
 
     return 1;
 }
 
-struct member *remove_Member(struct archive *a, char *name)
+struct member *remove_Member(struct directory *d, char *name)
 {
-    if ((!a) || !(a->size))
+    if ((!d) || !(d->size))
         return NULL;
 
     struct member *m, *h;
-    long aux;
+    long aux, start, end;
 
-    while (a->members[aux]->name != name)
+    while (d->members[aux]->name != name)
         aux++;
-    m = a->members[aux];
-    (a->size)--;
-    if (aux != a->size)
+    m = d->members[aux];
+    (d->size)--;
+    if (aux != d->size)
     {
-        h = a->members[a->size];
-        a->members[aux] = h;
+        h = d->members[d->size];
+        d->members[aux] = h;
     }
 
-    realloc(a->members, a->size);
+    realloc(d->members, d->size);
 
     return m;
 }
@@ -179,74 +183,84 @@ int print_Member(struct member *m)
     return 1;
 }
 
-struct member *search_Archive(struct archive *a, char *name)
+struct member *search_Directory(struct directory *d, char *name)
 {
-    if (!a)
+    if (!d)
         return NULL;
 
     struct member *m;
 
-    for (unsigned long i = 0; i < a->size; i++)
+    for (unsigned long i = 0; i < d->size; i++)
     {
-        m = a->members[i];
+        m = d->members[i];
         if (m->name == name)
             return m;
     }
     return NULL;
 }
 
-unsigned long find_Size(struct archive *a)
+unsigned long find_Size(struct directory *d)
 {
-    if (!a)
+    if (!d)
         return 0;
 
     unsigned long i = 0;
 
-    while (a->members[i]->order != 1)
+    while (d->members[i]->order != 1)
         i++;
 
-    return a->members[i]->offset;
+    return d->members[i]->offset;
 }
 
-int overwrite(FILE *archive, struct archive *a, unsigned long max)
+int overwrite(FILE *archive, struct directory *d, unsigned long max)
 {
-    if ((!archive) || (!a))
+    if ((!archive) || (!d))
         return 0;
 
     long add;
     unsigned long tam;
 
-    tam = find_Size(a);
+    tam = find_Size(d);
 
-    if (tam != (sizeof(struct member) * a->size))
+    if (tam != (sizeof(struct member) * d->size))
     {
-        move(archive, tam, fseek(archive, 0, SEEK_END), (a->size * sizeof(struct member)), max);
-        add = (a->size * sizeof(struct member) - tam);
-        for (unsigned long i = 0; i < a->size; i++)
-            a->members[i]->offset += add;
+        move(archive, tam, fseek(archive, 0, SEEK_END), (d->size * sizeof(struct member)), max);
+        add = (d->size * sizeof(struct member) - tam);
+        for (unsigned long i = 0; i < d->size; i++)
+            d->members[i]->offset += add;
     }
     rewind(archive);
-    for (unsigned long i = 0; i < a->size; i++)
+    for (unsigned long i = 0; i < d->size; i++)
     {
-        fwrite(a->members[i], sizeof(struct member), 1, archive);
+        fwrite(d->members[i], sizeof(struct member), 1, archive);
     }
-    return;
+    return 1;
 }
 
-int destroy_Archive(struct archive *a)
+int destroy_Directory(struct directory *d)
 {
-    if (!a)
+    if (!d)
         return 0;
 
-    free(a->members);
-    free(a);
+    struct member *m;
+
+    while (d->size > 0)
+    {
+        m = remove_Member(d, d->members[--(d->size)]->name);
+        if (!m)
+            return 0;
+        free(m);
+    }
+
+    free(d->members);
+    free(d);
 
     return 1;
 }
 
-int extract_Member(FILE *arc, struct archive *a, char *name, unsigned long max)
+int extract_Member(FILE *arc, struct directory *d, char *name, unsigned long max)
 {
-    if (!a)
+    if (!d)
         return 0;
 
     FILE *aux;
@@ -254,7 +268,7 @@ int extract_Member(FILE *arc, struct archive *a, char *name, unsigned long max)
     char *buffer[max];
     unsigned long end;
 
-    m = remove_Member(a, name);
+    m = remove_Member(d, name);
     aux = fopen(m->name, "w+");
     fseek(arc, m->offset, SEEK_SET);
     fgets(buffer, m->comp_Size, arc);
@@ -263,6 +277,8 @@ int extract_Member(FILE *arc, struct archive *a, char *name, unsigned long max)
     end = ftell(arc);
     move(arc, m->offset, m->comp_Size, end, max);
     truncate(arc, (end - m->comp_Size));
+
+    fclose(aux);
 
     return 1;
 }
