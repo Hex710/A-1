@@ -7,7 +7,6 @@
 
 #include "archive.h"
 
-// criar o caso base para não ter um arquivo/diretório ainda
 struct directory *create_Directory(FILE *arc)
 {
     struct directory *d;
@@ -217,7 +216,7 @@ int overwrite(FILE *archive, struct directory *d, unsigned long max)
 
     tam = find_Size(d);
 
-    if (tam != (sizeof(struct member) * d->size))
+    if (tam != (sizeof(long) + (sizeof(struct member) * d->size)))
     {
         move(archive, tam, fseek(archive, 0, SEEK_END), (d->size * sizeof(struct member)), max);
         add = (d->size * sizeof(struct member) - tam);
@@ -272,7 +271,9 @@ int extract_Member(FILE *arc, struct directory *d, char *name, unsigned long max
     fseek(arc, 0, SEEK_END);
     end = ftell(arc);
     move(arc, m->offset, m->comp_Size, end, max);
-    truncate(arc, (end - m->comp_Size));
+    fseek(arc, 0, SEEK_END);
+    ftruncate(fileno(arc), ftell(arc) - m->comp_Size);
+    free(m);
 
     fclose(aux);
 

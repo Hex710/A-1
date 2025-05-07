@@ -7,72 +7,42 @@
 #include "lz.h"
 #include "archive.h"
 
-struct info
+/* usar os stats para conseguir mod_Date e UID, que é o id do usuário e não do arquivo kkkkkkk */
+
+struct member *existe(struct directory *d, char *name)
 {
-    char name[1025];         // nome do membro
-    unsigned long uid;       // id unica do membro
-    unsigned long og_Size;   // tamanho do membro original
-    unsigned long comp_Size; // tamanho do membro apos compressao
-    unsigned long mod_Date;  // data de modificacao do membro
-    unsigned long order;     // ordem do membro dentro do archive
-    unsigned long offset;    // offset do inicio do archive ate o inicio do membro
-};
-
-char *search(char *dir, char *target, unsigned long base, unsigned long s)
-{
-    char *temp = strtok(dir, " ");
-
-    char *aux[base - s];
-
-    if (s > base)
+    if (!d)
+        return NULL;
+    for (unsigned long i = 0; i < d->size; i++)
     {
-        while ((temp != target) && (temp != NULL))
-            temp = strtok(NULL, " ");
+        if (d->members[i]->name == name)
+            return d->members[i];
     }
-    else
-    {
-        aux[0] = temp;
-        unsigned long i = 1;
-        while ((temp != target) && (temp != NULL))
-        {
-            for (i; i < base; i++)
-                aux[i] = strtok(NULL, " ");
-            i = 0;
-            temp = strtok(NULL, " ");
-        }
-        return aux[s - base];
-    }
-
-    if (temp == NULL)
-    {
-        for (unsigned long i = base; i < s; i++)
-            temp = strtok(NULL, " ");
-    }
-
-    return temp;
+    return NULL;
 }
 
-unsigned long max_Size(char *directory)
+unsigned long max_Size(struct directory *d)
 {
-    unsigned long j, max = 0;
-    strtok(directory, " ");
-
-    for (int i = 0; i < 2; i++)
-        strtok(NULL, " ");
-    j = atoi(strtok(NULL, " "));
-    if (j > max)
-        max = j;
-    for (int i = 0; i < 3; i++)
-        strtok(NULL, " ");
-    while (strtok(NULL, " ") != NULL)
+    if (!d)
+        return 0;
+    unsigned long max = 0;
+    for (unsigned long i = 0; i < d->size; i++)
     {
-        for (int i = 0; i < 2; i++)
-            strtok(NULL, " ");
-        j = atoi(strtok(NULL, " "));
-        if (j > max)
-            max = j;
-        for (int i = 0; i < 3; i++)
-            strtok(NULL, " ");
+        if (d->members[i]->comp_Size > max)
+            max = d->members[i]->comp_Size;
+    }
+    return max;
+}
+
+unsigned long new_Offset(struct directory *d)
+{
+    if (!d)
+        return 0;
+    unsigned long max = 0;
+    for (unsigned long i = 0; i < d->size; i++)
+    {
+        if (d->members[i]->offset > max)
+            max = d->members[i]->offset;
     }
     return max;
 }
@@ -81,6 +51,7 @@ int main(int argc, char **argv)
 {
     FILE *archive, *membro;
     char *buffer;
+    struct directory *d;
     unsigned long i, max;
 
     if (argv[1] == "m")
@@ -88,7 +59,9 @@ int main(int argc, char **argv)
     else
         archive = fopen(argv[2], "+a");
 
-    max = max_Size(archive);
+    d = create_Directory(archive);
+
+    max = max_Size(d);
 
     if (!(buffer = malloc(max * sizeof(char))))
         return -1;
@@ -98,19 +71,38 @@ int main(int argc, char **argv)
         i = 4;
         do
         {
+            /* apenas um membro vai ser movido, o membro logo após -m */
             buffer = argv[i];
             unsigned long espaco, compresso, alvo;
-            espaco = atoi(search(archive, buffer, NAME, OFFSET));
-            compresso = atoi(search(archive, buffer, NAME, COMP));
+            espaco = search_Directory(d, buffer)->offset;
+            compresso = search_Directory(d, buffer)->comp_Size;
             if (argv[2] != "NULL")
             {
-                alvo = atoi(search(archive, argv[2], NAME, OFFSET));
-                alvo += atoi(search(archive, argv[2], NAME, COMP));
+                alvo = search_Directory(d, argv[2])->offset;
+                alvo += search_Directory(d, argv[2])->comp_Size;
             }
             else
                 alvo = 0;
             move(archive, espaco, compresso, alvo, max);
-            // consertar no diretorio
+            for (unsigned long j = 0; j < d->size; j++)
+            {
+                if (alvo > espaco)
+                {
+                    if ((d->members[j]->order > search_Directory(d, argv[2])->order) && (d->members[j]->offset > alvo))
+                    {
+                        (d->members[j]->order)--;
+                        d->members[j]->offset -= search_Directory(d, argv[2])->comp_Size;
+                    }
+                }
+                else
+                {
+                    if ((d->members[j]->order < search_Directory(d, argv[2])->order) && (d->members[j]->offset > alvo))
+                    {
+                        (d->members[j]->order)++;
+                        d->members[j]->offset += search_Directory(d, argv[2])->comp_Size;
+                    }
+                }
+            }
             i++;
         } while (argv[i] != NULL);
     }
@@ -123,18 +115,16 @@ int main(int argc, char **argv)
             do
             {
                 buffer = argv[i];
-                unsigned long espaco, compresso, alvo;
-                espaco = atoi(search(archive, buffer, NAME, OFFSET));
-                compresso = atoi(search(archive, buffer, NAME, COMP));
-                fseek(archive, -compresso, SEEK_END);
-                alvo = ftell(archive);
-                move(archive, espaco, compresso, alvo, max);
-                fseek(archive, -compresso, SEEK_END);
-                buffer = fgets(buffer, compresso, archive);
-                // achar um jeito de truncar
-                ftruncate();
-                // escrever em um novo arquivo
-                // consertar no diretorio
+                struct member *aux = search_Directory(d, buffer);
+                for (unsigned long j = 0; j < d->size; j++)
+                {
+                    if (d->members[j]->order > aux->order)
+                    {
+                        (d->members[j]->order)++;
+                        d->members[j]->offset -= aux->comp_Size;
+                    }
+                }
+                extract_Member(archive, d, buffer, max);
                 i++;
             } while (argv[i] != NULL);
         }
@@ -142,27 +132,90 @@ int main(int argc, char **argv)
         {
             do
             {
+                buffer = argv[i];
+                struct member *aux = search_Directory(d, buffer);
+                for (unsigned long j = 0; j < d->size; j++)
+                {
+                    if (d->members[j]->order > aux->order)
+                    {
+                        (d->members[j]->order)++;
+                        d->members[j]->offset -= aux->comp_Size;
+                    }
+                }
+                aux = remove_Member(d, buffer);
+                fseek(archive, 0, SEEK_END);
+                move(archive, aux->offset, aux->comp_Size, ftell(archive), max);
+                fseek(archive, 0, SEEK_END);
+                ftruncate(fileno(archive), ftell(archive) - aux->comp_Size);
 
+                free(aux);
+                i++;
             } while (argv[i] != NULL);
         }
         else if (argv[1] == "c")
         {
+            for (unsigned long j = 0; j < d->size; j++)
+                print_Member(d->members[j]);
         }
-        else if (argv[1] == "i")
+        else if (argv[1] == "i") /* use os stats para conseguir o UID e a data de modificação, e faça o caso em que será inserido um arquivo que já foi inserido */
         {
             do
             {
-
+                buffer = argv[i];
+                FILE *new = fopen(buffer, "w+");
+                fseek(new, 0, SEEK_END);
+                if (max < ftell(new))
+                {
+                    max = ftell(new);
+                    realloc(buffer, (max * sizeof(char)));
+                }
+                struct member *aux = existe(d, buffer);
+                if (aux == NULL)
+                {
+                    aux = create_Member(buffer, (new_Id(d) + 1), new_Offset(d));
+                    insert_member(d, aux);
+                    rewind(new);
+                    fgets(buffer, max, new);
+                    fseek(archive, 0, SEEK_END);
+                    fputs(buffer, archive);
+                }
+                else
+                {
+                }
+                i++;
+                fclose(new);
             } while (argv[i] != NULL);
         }
         else if (argv[1] == "p")
         {
             do
             {
-
+                buffer = argv[i];
+                FILE *new = fopen(buffer, "w+");
+                struct member *aux = create_Member(buffer, (new_Id(d) + 1), new_Offset(d));
+                fseek(new, 0, SEEK_END);
+                aux->og_Size = ftell(new);
+                LZ_Compress(buffer, buffer, ftell(new));
+                fclose(new);
+                new = fopen(buffer, "w+");
+                fseek(new, 0, SEEK_END);
+                if (max < ftell(new))
+                {
+                    max = ftell(new);
+                    realloc(buffer, (max * sizeof(char)));
+                }
+                insert_member(d, aux);
+                rewind(new);
+                fgets(buffer, max, new);
+                fseek(archive, 0, SEEK_END);
+                fputs(buffer, archive);
+                i++;
+                fclose(new);
             } while (argv[i] != NULL);
         }
     }
+
+    destroy_Directory(d);
 
     fclose(archive);
 }
