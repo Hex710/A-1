@@ -11,26 +11,22 @@
 struct directory *create_Directory(FILE *arc)
 {
     struct directory *d;
-    long i, size;
+    long i = 0;
 
     d->members = NULL;
-    d->size = 0;
 
     d = malloc(sizeof(struct directory));
 
-    d->members = malloc(sizeof(struct member));
-    fread(d->members[0], sizeof(struct member), 1, arc);
-    size = (d->members[0]->offset - 1);
-    i = 1;
+    fread(d->size, sizeof(long), 1, arc);
 
-    while (ftell(arc) < size)
+    d->members = malloc(sizeof(struct member));
+
+    for (i; i < d->size; i++)
     {
         realloc(d->members, sizeof(struct member) * (i + 1));
+        d->members[i] = malloc(sizeof(struct member));
         fread(d->members[i], sizeof(struct member), 1, arc);
-        i++;
     }
-
-    d->size = i;
 
     return d;
 }
@@ -111,7 +107,6 @@ int move(FILE *archive, unsigned long start, unsigned long tam, unsigned long ta
             fseek(archive, start, SEEK_SET);
             fputs(buffer, archive);
         }
-
         fgets(buffer, tam, aux);
         fseek(archive, target, SEEK_SET);
         fputs(buffer, archive);
@@ -230,6 +225,7 @@ int overwrite(FILE *archive, struct directory *d, unsigned long max)
             d->members[i]->offset += add;
     }
     rewind(archive);
+    fwrite(d->size, sizeof(long), 1, archive);
     for (unsigned long i = 0; i < d->size; i++)
     {
         fwrite(d->members[i], sizeof(struct member), 1, archive);
